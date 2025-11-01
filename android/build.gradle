@@ -40,4 +40,16 @@ android {
   lintOptions {
     abortOnError false
   }
+  buildFeatures {
+    aidl = true
+  }
+  sourceSets {
+    main {
+      aidl.srcDirs = ['src/main/aidl']
+    }
+  }
+}
+
+dependencies {
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
 }
