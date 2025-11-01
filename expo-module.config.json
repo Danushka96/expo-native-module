@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoR330PrinterModule"]
+  },
+  "android": {
+    "modules": ["lk.klass.posterminal.ExpoR330PrinterModule"]
+  }
+}

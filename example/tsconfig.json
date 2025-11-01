@@ -1,0 +1,10 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "expo-r330-printer": ["../src/index"],
+      "expo-r330-printer/*": ["../src/*"]
+    }
+  }
+}
