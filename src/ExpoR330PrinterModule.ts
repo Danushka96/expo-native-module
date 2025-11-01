@@ -1,12 +1,11 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { NativeModule, requireNativeModule } from "expo";
 
-import { ExpoR330PrinterModuleEvents } from './ExpoR330Printer.types';
+import { ExpoR330PrinterModuleEvents, Theme } from "./ExpoR330Printer.types";
 
 declare class ExpoR330PrinterModule extends NativeModule<ExpoR330PrinterModuleEvents> {
-  PI: number;
-  hello(): string;
-  setValueAsync(value: string): Promise<void>;
+  setTheme: (theme: Theme) => void;
+  getTheme: () => Theme;
 }
 
 // This call loads the native module object from the JSI.
-export default requireNativeModule<ExpoR330PrinterModule>('ExpoR330Printer');
+export default requireNativeModule<ExpoR330PrinterModule>("ExpoR330Printer");
