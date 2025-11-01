@@ -81,15 +81,88 @@ class PrinterServiceManager(private val context: Context) {
   fun printBitmapFromBase64(base64Image: String, cb: (Throwable?) -> Unit) {
     executor.execute {
       try {
-        val cleaned = base64Image.substringAfter("base64,", base64Image)
-        val bytes = Base64.decode(cleaned, Base64.DEFAULT)
-        val bmp: Bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-          ?: throw IllegalArgumentException("Could not decode bitmap")
+        // If value is a data URI (data:image/png;base64,....), strip prefix.
+        val cleaned = base64Image.substringAfter("base64,", base64Image).trim()
+
+        if (cleaned.isEmpty()) {
+          cb(IllegalArgumentException("Empty base64 image data"))
+          return@execute
+        }
+
+        // Try decode with a few flags in case the incoming base64 has line breaks or URL-safe encoding.
+        val candidateBytesList = mutableListOf<ByteArray>()
+        try {
+          candidateBytesList.add(Base64.decode(cleaned, Base64.DEFAULT))
+        } catch (_: IllegalArgumentException) { /* try others below */ }
+        if (candidateBytesList.isEmpty()) {
+          try { candidateBytesList.add(Base64.decode(cleaned, Base64.NO_WRAP)) } catch (_: Exception) { }
+        }
+        if (candidateBytesList.isEmpty()) {
+          try { candidateBytesList.add(Base64.decode(cleaned, Base64.URL_SAFE)) } catch (_: Exception) { }
+        }
+
+        if (candidateBytesList.isEmpty()) {
+          cb(IllegalArgumentException("Failed to Base64-decode image data"))
+          return@execute
+        }
+
+        var bmp: Bitmap? = null
+        var lastErr: Throwable? = null
+
+        for (bytes in candidateBytesList) {
+          try {
+            // First pass to get image dimensions
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOptions)
+            val width = boundsOptions.outWidth
+            val height = boundsOptions.outHeight
+
+            // if bounds invalid, try direct decode
+            if (width <= 0 || height <= 0) {
+              // Attempt direct decode
+              bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+              if (bmp != null) break
+              else throw IllegalArgumentException("Decoded bytes not recognized as an image (invalid dimensions)")
+            }
+
+            // compute inSampleSize to limit decoded image size to ~1080px max dimension (adjust as needed)
+            val maxDim = 1080
+            var inSampleSize = 1
+            val maxSide = maxOf(width, height)
+            if (maxSide > maxDim) {
+              inSampleSize = 1
+              while (maxSide / inSampleSize > maxDim) {
+                inSampleSize *= 2
+              }
+            }
+
+            val decodeOptions = BitmapFactory.Options().apply {
+              inSampleSize = inSampleSize
+              inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+
+            bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions)
+            if (bmp != null) break
+          } catch (t: Throwable) {
+            lastErr = t
+            // try next candidate
+          }
+        }
+
+        if (bmp == null) {
+          val cause = lastErr ?: IllegalArgumentException("Could not decode bitmap")
+          cb(IllegalArgumentException("Could not decode bitmap: ${cause.message}", cause))
+          return@execute
+        }
+
         requirePrinter().printBitmap(bmp)
         cb(null)
-      } catch (t: Throwable) { cb(t) }
+      } catch (t: Throwable) {
+        cb(t)
+      }
     }
   }
+
 
   fun printBarCode(data: String, symbology: Int, height: Int, width: Int, cb: (Throwable?) -> Unit) {
     executor.execute {
